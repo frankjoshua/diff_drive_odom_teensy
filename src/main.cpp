@@ -10,32 +10,34 @@
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
 #include "geometry_msgs/Twist.h"
+#include "geometry_msgs/Vector3.h"
 
 #define EncoderCSLeft 6
 #define EncoderCSRight 5
-#define K_P 5.6  // P constant
-#define K_I 0.0  // I constant
-#define K_D 40.0 // D constant
+#define PID_MAX 2048
+#define K_P 5.0   // P constant
+#define K_I 0.025 // I constant
+#define K_D 10.0  // D constant
 
 //define your robot' specs here
 #define TICKS_PER_REVOLUTION 64000 // Number of encoder ticks for full rotation
 #define MAX_RPM 330                // motor's maximum RPM
-#define COUNTS_PER_REV 1550        // wheel encoder's no of ticks per rev
 #define WHEEL_DIAMETER 0.15        // wheel's diameter in meters
-#define PWM_BITS 8                 // PWM Resolution of the microcontroller
-#define LR_WHEELS_DISTANCE 0.235   // distance between left and right wheels
+#define LR_WHEELS_DISTANCE 0.35    // distance between left and right wheels
 #define FR_WHEELS_DISTANCE 0.30    // distance between front and rear wheels. Ignore this if you're on 2WD/ACKERMANN
 
 Kinematics kinematics(Kinematics::DIFFERENTIAL_DRIVE, MAX_RPM, WHEEL_DIAMETER, FR_WHEELS_DISTANCE, LR_WHEELS_DISTANCE);
-PID pidLeft(-100, 100, K_P, K_I, K_D);
-PID pidRight(-100, 100, K_P, K_I, K_D);
+PID pidLeft(-PID_MAX, PID_MAX, K_P, K_I, K_D);
+PID pidRight(-PID_MAX, PID_MAX, K_P, K_I, K_D);
 Encoder encoder(EncoderCSLeft, EncoderCSRight, WHEEL_DIAMETER / 2, TICKS_PER_REVOLUTION);
 Motor leftMotor(2);
 Motor rightMotor(1);
 Odometry odometry;
 
-void commandCallback(const geometry_msgs::Twist &cmd_msg);
-ros::Subscriber<geometry_msgs::Twist> cmd_sub("cmd_vel", commandCallback);
+void pidCallback(const geometry_msgs::Vector3 &vector_msg);
+ros::Subscriber<geometry_msgs::Vector3> pid_sub("pid_update", pidCallback);
+void cmdVelCallback(const geometry_msgs::Twist &cmd_msg);
+ros::Subscriber<geometry_msgs::Twist> cmd_sub("cmd_vel", cmdVelCallback);
 ros::NodeHandle nh;
 geometry_msgs::TransformStamped t;
 tf::TransformBroadcaster broadcaster;
@@ -48,12 +50,18 @@ Kinematics::rpm goalRPM;
 geometry_msgs::Twist velTwist;
 ros::Publisher velPub("raw_vel", &velTwist);
 
-void commandCallback(const geometry_msgs::Twist &cmd_msg)
+void cmdVelCallback(const geometry_msgs::Twist &cmd_msg)
 {
   //callback function every time linear and angular speed is received from 'cmd_vel' topic
   //this callback function receives cmd_msg object where linear and angular speed are stored
   lastCommandTime = millis();
   goalRPM = kinematics.getRPM(cmd_msg.linear.x, cmd_msg.linear.y, cmd_msg.angular.z);
+}
+
+void pidCallback(const geometry_msgs::Vector3 &vector_msg)
+{
+  pidLeft = PID(-PID_MAX, PID_MAX, vector_msg.x, vector_msg.y, vector_msg.z);
+  pidRight = PID(-PID_MAX, PID_MAX, vector_msg.x, vector_msg.y, vector_msg.z);
 }
 
 void setup()
@@ -63,6 +71,7 @@ void setup()
   //Setup ROS
   nh.initNode();
   nh.subscribe(cmd_sub);
+  nh.subscribe(pid_sub);
   nh.advertise(velPub);
   broadcaster.init(nh);
   while (!nh.connected())
