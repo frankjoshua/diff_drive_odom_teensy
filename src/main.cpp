@@ -5,8 +5,8 @@
 #include "PID.h"
 #include "Motor.h"
 #include "Odometry.h"
-#include <ros.h>
-#include <ros/time.h>
+// #include <ros.h>
+// #include <ros/time.h>
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
 #include "geometry_msgs/Twist.h"
@@ -20,10 +20,10 @@
 #define K_D 10.0  // D constant
 
 //define your robot' specs here
-#define TICKS_PER_REVOLUTION 64000 // Number of encoder ticks for full rotation
+#define TICKS_PER_REVOLUTION (234 * 4) // Number of encoder ticks for full rotation
 #define MAX_RPM 330                // motor's maximum RPM
-#define WHEEL_DIAMETER 0.15        // wheel's diameter in meters
-#define LR_WHEELS_DISTANCE 0.35    // distance between left and right wheels
+#define WHEEL_DIAMETER 0.254        // wheel's diameter in meters
+#define LR_WHEELS_DISTANCE 0.508    // distance between left and right wheels
 #define FR_WHEELS_DISTANCE 0.30    // distance between front and rear wheels. Ignore this if you're on 2WD/ACKERMANN
 
 Kinematics kinematics(Kinematics::DIFFERENTIAL_DRIVE, MAX_RPM, WHEEL_DIAMETER, FR_WHEELS_DISTANCE, LR_WHEELS_DISTANCE);
@@ -76,8 +76,10 @@ void setup()
   broadcaster.init(nh);
   while (!nh.connected())
   {
+    // Serial.println("ROS Node connected");
     nh.spinOnce();
   }
+  
   // goalRPM = kinematics.getRPM(0.2, 0, 0);
 }
 
